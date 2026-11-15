@@ -8,6 +8,7 @@ Thanks for helping. This is a small project, so the process is light.
 python3 -m venv .venv
 .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/python -m pytest tests
+.venv/bin/python -m ruff check scripts tests
 ```
 
 The tests need no GPU, ComfyUI, models, or game assets. If you add a feature or fix a bug, add a test that fails
