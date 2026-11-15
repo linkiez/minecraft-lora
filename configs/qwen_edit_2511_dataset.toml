@@ -1,0 +1,13 @@
+[general]
+resolution = [1024, 1024]
+caption_extension = ".txt"
+batch_size = 1
+num_repeats = 1
+enable_bucket = true
+bucket_no_upscale = false
+
+[[datasets]]
+image_jsonl_file = "datasets/qwen_edit_pairs/metadata.jsonl"
+cache_directory = "datasets/qwen_edit_pairs/cache_1024"
+control_resolution = [1024, 1024]
+no_resize_control = false
