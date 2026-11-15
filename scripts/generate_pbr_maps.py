@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate estimated normal and specular maps for a resource pack."""
+"""Generate LabPBR 1.3 normal and specular maps, estimated from the albedo, for a resource pack."""
 
 from __future__ import annotations
 
@@ -24,12 +24,35 @@ from texture_frames import (
 # Pillow's conservative decompression-bomb threshold while still being expected.
 Image.MAX_IMAGE_PIXELS = None
 
-METALLIC_TERMS = {
-    "iron", "gold", "copper", "metal", "steel", "silver", "bronze", "chain", "anvil", "rail", "ore"
+# Constants follow the LabPBR 1.3 material standard (https://shaderlabs.org/wiki/LabPBR_Material_Standard).
+# Specular green channel: 0-229 stores linear F0 (reflectance), 230-254 select a predefined metal, 255 is a generic
+# metal that uses the albedo as F0.
+DIELECTRIC_F0 = 10  # about 4 %, typical of non-metals
+GENERIC_METAL = 255
+METAL_IDS = {
+    "iron": 230, "steel": 230, "anvil": 230, "chain": 230,
+    "gold": 231, "aluminum": 232, "aluminium": 232, "chrome": 233,
+    "copper": 234, "lead": 235, "platinum": 236, "silver": 237,
 }
+GENERIC_METAL_TERMS = {"metal", "bronze", "brass"}
+# A texture of stone with metal specks, or of a raw lump, must not be shaded as solid metal.
+NOT_SOLID_METAL_TERMS = {"ore", "raw"}
+# Specular blue channel: 0-64 is porosity (the LabPBR examples: sand 64, wool 38, wood 12).
+POROSITY_BY_TERM = {"sand": 64, "wool": 38, "carpet": 38, "planks": 12, "log": 12, "wood": 12, "stem": 12}
+# Specular alpha: 0-254 is emission strength, 255 means "does not emit".
+NO_EMISSION = 255
+MAX_EMISSION = 254
 EMISSIVE_TERMS = {
     "emissive", "glow", "glowing", "lava", "fire", "flame", "lantern", "torch", "light", "magma", "redstone"
 }
+# Normal alpha is height: 255 is the surface, lower values are deeper. The depth range actually used is limited so
+# the parallax effect stays moderate, and 0 is avoided because some shader packs mishandle it.
+HEIGHT_DEPTH_RANGE = 0.6
+MIN_HEIGHT = 1
+# Normal blue is ambient occlusion: 255 is none. Pixels darker than their surroundings count as cavities.
+AO_STRENGTH = 0.5
+AO_CAVITY_SCALE = 0.25
+AO_BLUR_PER_SIDE = 0.06
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,47 +68,68 @@ def is_albedo_path(path: Path) -> bool:
     return path.suffix.lower() == ".png" and not path.stem.endswith(("_n", "_s"))
 
 
-def source_alpha(image: Image.Image) -> np.ndarray:
-    if "A" in image.getbands():
-        return np.asarray(image.convert("RGBA").getchannel("A"), dtype=np.uint8)
-    return np.full((image.height, image.width), 255, dtype=np.uint8)
-
-
 def height_field(image: Image.Image) -> np.ndarray:
     rgb = np.asarray(image.convert("RGB"), dtype=np.uint8)
     gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY).astype(np.float32) / 255.0
     return cv2.GaussianBlur(gray, (0, 0), sigmaX=1.1, sigmaY=1.1)
 
 
+def height_channel(height: np.ndarray) -> np.ndarray:
+    """LabPBR height (normal alpha): 255 at the highest point of the texture, lower where it is deeper."""
+    depth = (float(height.max()) - height) * HEIGHT_DEPTH_RANGE
+    return np.clip(np.rint(255.0 - depth * 255.0), MIN_HEIGHT, 255)
+
+
+def ambient_occlusion_channel(height: np.ndarray) -> np.ndarray:
+    """LabPBR material occlusion (normal blue): 255 on flat or raised areas, darker inside cavities."""
+    sigma = max(3.0, AO_BLUR_PER_SIDE * max(height.shape))
+    surroundings = cv2.GaussianBlur(height, (0, 0), sigmaX=sigma, sigmaY=sigma)
+    cavity = np.clip((surroundings - height) / AO_CAVITY_SCALE, 0.0, 1.0)
+    return np.clip(np.rint(255.0 * (1.0 - AO_STRENGTH * cavity)), 0, 255)
+
+
 def generate_normal_map(image: Image.Image, strength: float = 2.0) -> Image.Image:
+    """Build a LabPBR normal texture: X/Y in red/green (DirectX, Y down), occlusion in blue, height in alpha."""
     height = height_field(image)
     gradient_x = cv2.Sobel(height, cv2.CV_32F, 1, 0, ksize=3)
     gradient_y = cv2.Sobel(height, cv2.CV_32F, 0, 1, ksize=3)
     normal = np.dstack((-gradient_x * strength, -gradient_y * strength, np.ones_like(height)))
     normal /= np.maximum(np.linalg.norm(normal, axis=2, keepdims=True), 1e-6)
-    encoded = np.clip(np.rint((normal * 0.5 + 0.5) * 255.0), 0, 255).astype(np.uint8)
-    return Image.fromarray(encoded, mode="RGB")
+    xy = np.clip(np.rint((normal[..., :2] * 0.5 + 0.5) * 255.0), 0, 255)
+    encoded = np.dstack((xy, ambient_occlusion_channel(height), height_channel(height))).astype(np.uint8)
+    return Image.fromarray(encoded, mode="RGBA")
 
 
-def material_channels(image: Image.Image, path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def metal_value(words: set[str]) -> int | None:
+    """The LabPBR green-channel metal id for a texture name, or None when it is not a solid metal."""
+    if words & NOT_SOLID_METAL_TERMS:
+        return None
+    known = next((METAL_IDS[word] for word in sorted(words) if word in METAL_IDS), None)
+    if known is not None:
+        return known
+    return GENERIC_METAL if words & GENERIC_METAL_TERMS else None
+
+
+def material_channels(image: Image.Image, path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Estimate the four LabPBR specular channels (smoothness, F0/metal, porosity, emission) from albedo and name."""
     rgb = np.asarray(image.convert("RGB"), dtype=np.uint8)
-    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV).astype(np.float32)
-    value = hsv[:, :, 2] / 255.0
-    saturation = hsv[:, :, 1] / 255.0
+    value = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV).astype(np.float32)[:, :, 2] / 255.0
     detail = np.abs(cv2.Laplacian(value, cv2.CV_32F))
     smoothness = np.clip(72.0 + value * 72.0 - detail * 120.0, 0.0, 255.0)
     words = set(path.stem.lower().replace("-", "_").split("_"))
-    metallic = np.full_like(value, 230.0 if words & METALLIC_TERMS else 32.0)
-    if not words & METALLIC_TERMS:
-        metallic = np.clip(metallic + (1.0 - saturation) * value * 24.0, 0.0, 255.0)
-    emissive = np.clip(value * 220.0, 0.0, 255.0) if words & EMISSIVE_TERMS else np.zeros_like(value)
-    return smoothness, metallic, emissive
+    metal = metal_value(words)
+    f0 = np.full_like(value, DIELECTRIC_F0 if metal is None else metal)
+    porosity_value = 0 if metal is not None else max((POROSITY_BY_TERM.get(word, 0) for word in words), default=0)
+    porosity = np.full_like(value, porosity_value)
+    emission_strength = np.clip(value * 220.0, 0.0, MAX_EMISSION)
+    emissive = emission_strength if words & EMISSIVE_TERMS else np.full_like(value, NO_EMISSION)
+    return smoothness, f0, porosity, emissive
 
 
 def generate_specular_map(image: Image.Image, path: Path) -> Image.Image:
-    smoothness, metallic, emissive = material_channels(image, path)
-    rgba = np.dstack((smoothness, metallic, emissive, source_alpha(image)))
-    return Image.fromarray(np.clip(np.rint(rgba), 0, 255).astype(np.uint8), mode="RGBA")
+    """Build a LabPBR specular texture: smoothness, F0 or metal id, porosity, and emission in alpha."""
+    channels = np.dstack(material_channels(image, path))
+    return Image.fromarray(np.clip(np.rint(channels), 0, 255).astype(np.uint8), mode="RGBA")
 
 
 def resize_reference(reference: Path, size: tuple[int, int], mode: str) -> Image.Image:
