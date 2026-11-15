@@ -145,7 +145,7 @@ def resolve_upscale_model_name(comfy_root: Path, requested_name: str) -> str | N
 
 
 class LazyRenderer:
-    def __init__(self, renderer: "ComfyRenderer") -> None:
+    def __init__(self, renderer: ComfyRenderer) -> None:
         self.renderer = renderer
         self.ready = False
 

@@ -13,16 +13,16 @@ import cv2
 import numpy as np
 from PIL import Image
 
-# This pipeline re-opens locally generated 4k animation sheets that can exceed
-# Pillow's conservative decompression-bomb threshold while still being expected.
-Image.MAX_IMAGE_PIXELS = None
-
 from texture_frames import (
     animation_grid,
     assemble_animation_frames,
     load_texture_metadata,
     split_animation_frames,
 )
+
+# This pipeline re-opens locally generated 4k animation sheets that can exceed
+# Pillow's conservative decompression-bomb threshold while still being expected.
+Image.MAX_IMAGE_PIXELS = None
 
 METALLIC_TERMS = {
     "iron", "gold", "copper", "metal", "steel", "silver", "bronze", "chain", "anvil", "rail", "ore"

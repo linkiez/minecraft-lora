@@ -12,7 +12,7 @@ import csv
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, Optional
+from collections.abc import Iterable
 
 
 @dataclass(frozen=True)
@@ -38,8 +38,8 @@ def iter_png_assets(root: Path, source_name: str) -> Iterable[Entry]:
         yield Entry(source=source_name, abs_path=p.resolve(), rel_key=rel)
 
 
-def build_maps(original_assets: Path, mods_assets: Path, resource_assets: Path) -> tuple[Dict[str, Entry], Dict[str, Entry]]:
-    base_map: Dict[str, Entry] = {}
+def build_maps(original_assets: Path, mods_assets: Path, resource_assets: Path) -> tuple[dict[str, Entry], dict[str, Entry]]:
+    base_map: dict[str, Entry] = {}
 
     # Base precedence: original first, then mods override
     for e in iter_png_assets(original_assets, "original"):
@@ -47,7 +47,7 @@ def build_maps(original_assets: Path, mods_assets: Path, resource_assets: Path) 
     for e in iter_png_assets(mods_assets, "mods"):
         base_map[e.rel_key] = e
 
-    resource_map: Dict[str, Entry] = {}
+    resource_map: dict[str, Entry] = {}
     for e in iter_png_assets(resource_assets, "resource_pack"):
         resource_map[e.rel_key] = e
 
@@ -72,7 +72,7 @@ def split_rows(rows: list[dict], train_ratio: float = 0.8, val_ratio: float = 0.
     return train, val, test
 
 
-def build_generation_rows(base_map: Dict[str, Entry], resource_map: Dict[str, Entry]) -> list[dict[str, str]]:
+def build_generation_rows(base_map: dict[str, Entry], resource_map: dict[str, Entry]) -> list[dict[str, str]]:
     """One row per base texture, with the reference-pack path when the pack also has it."""
     return [
         {

@@ -78,7 +78,7 @@ def test_key_alpha_is_zero_on_the_key_one_on_the_object_and_partial_between() ->
     image = Image.new("RGB", (3, 1))
     image.putpixel((0, 0), key)
     image.putpixel((1, 0), OBJECT_COLOUR)
-    half = tuple((channel_key + channel_object) // 2 for channel_key, channel_object in zip(key, OBJECT_COLOUR))
+    half = tuple((channel_key + channel_object) // 2 for channel_key, channel_object in zip(key, OBJECT_COLOUR, strict=True))
     image.putpixel((2, 0), half)
 
     alpha = key_alpha(image, key)
@@ -91,7 +91,7 @@ def test_extract_cutout_edge_pixels_take_the_object_colour_not_a_key_mix() -> No
     key = KEY_COLOURS["magenta"]
     source = cutout_source(8, (0, 0, 5, 8))
     rendered = rendered_on_key(key, 64, (0, 0, 40, 64))
-    half = tuple((channel_key + channel_object) // 2 for channel_key, channel_object in zip(key, OBJECT_COLOUR))
+    half = tuple((channel_key + channel_object) // 2 for channel_key, channel_object in zip(key, OBJECT_COLOUR, strict=True))
     rendered.paste(Image.new("RGB", (1, 64), half), (40, 0))
 
     extracted = extract_cutout(rendered, source, key, (64, 64))
