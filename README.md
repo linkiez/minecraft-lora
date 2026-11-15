@@ -1,7 +1,7 @@
 # minecraft-lora
 
 Restyle every texture of a Minecraft modpack into a consistent, hand-drawn look with an image-editing model, and write
-the result as a ready-to-use resource pack with generated normal and specular maps.
+the result as a ready-to-use resource pack with normal and specular maps in the LabPBR 1.3 format.
 
 The pipeline runs [Qwen-Image-Edit-2511](https://huggingface.co/Qwen/Qwen-Image-Edit-2511) (a quantised GGUF build)
 inside [ComfyUI](https://github.com/comfyanonymous/ComfyUI), steered by LoRAs that you train on a reference resource
@@ -23,7 +23,7 @@ supported.
   so edges follow the drawing. Animated blocks use one render for all frames so they do not flicker. Greyscale textures
   that the game tints stay greyscale.
 - **Writes a complete pack.** Output follows the original paths, includes `pack.mcmeta`, copies animation metadata,
-  and estimates `_n` (normal) and `_s` (specular) maps from each texture for shader packs.
+  and estimates `_n` (normal) and `_s` (specular) maps from each texture in the [LabPBR 1.3](https://shaderlabs.org/wiki/LabPBR_Material_Standard) layout, for shader packs.
 - **Is fast and resumable.** With the 4-step Lightning LoRA a texture takes about 18 seconds on an RTX 4090. Rerun the
   same command after an interruption and it continues where it stopped.
 

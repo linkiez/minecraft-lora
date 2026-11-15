@@ -169,10 +169,10 @@ cd output/resourcepack_1024x_pbr && zip -r ../my-pack.zip . -x '.qwen_resourcepa
 - `pack.mcmeta` declares `pack_format` 34 (Minecraft 1.21 to 1.21.1). Edit it for another version.
 - The pack contains only the textures the reference pack lacks, so it does not overlap with the reference pack; enable
   both.
-- The `_n` and `_s` files are normal and specular maps estimated from the textures (see
-  [Output files](configuration.md#output-files) for their channel layout). They only matter with a shader pack that
-  reads them, and they are approximations: a shader pack that expects strict LabPBR 1.3 data may interpret the
-  channels differently. Without a shader pack they are ignored.
+- The `_n` and `_s` files are normal and specular maps in the [LabPBR 1.3](https://shaderlabs.org/wiki/LabPBR_Material_Standard)
+  layout, so shader packs that support LabPBR can read them (see [Output files](configuration.md#output-files) for the
+  channels). They are estimated from the textures and their names, not authored, so treat them as a good starting
+  point. Without a shader pack they are ignored.
 - 1024 px textures are heavy. If the game stutters, generate again at a lower `--resolution`.
 
 ## 6. Troubleshooting

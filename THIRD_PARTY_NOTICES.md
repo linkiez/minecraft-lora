@@ -26,6 +26,11 @@ ComfyUI is used as a separate, unmodified program over HTTP. It is not linked in
 LoRAs that you train with this project are derived from your own training data, so their license depends on that data
 (see below).
 
+## Formats
+
+The generated `_n` and `_s` maps follow the [LabPBR 1.3 material standard](https://shaderlabs.org/wiki/LabPBR_Material_Standard)
+of the shaderLABS community. Only the published layout is implemented; no code or assets are taken from it.
+
 ## Python dependencies
 
 Installed from PyPI by `requirements.txt`: Pillow (MIT-CMU), NumPy (BSD-3-Clause and others), and

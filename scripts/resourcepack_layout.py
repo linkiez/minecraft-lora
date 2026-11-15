@@ -53,7 +53,7 @@ def write_pack_metadata(output_root: Path, resolution: int) -> None:
     metadata = {
         "pack": {
             "pack_format": PACK_FORMAT,
-            "description": f"Artistic Smooth {resolution}px - Mods + Original (1.21.1)",
+            "description": f"Artistic Smooth {resolution}px LabPBR - Mods + Original (1.21.1)",
         }
     }
     (output_root / "pack.mcmeta").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")

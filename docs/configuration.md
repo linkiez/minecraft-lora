@@ -82,14 +82,25 @@ For each texture `X.png` that is generated:
 |---|---|
 | `X.png` | Always |
 | `X.png.mcmeta` | The source has animation metadata |
-| `X_n.png` | Not a GUI texture. Tangent-space normal map (RGB) computed from the luminance gradient of the albedo |
-| `X_s.png` | Not a GUI texture. Specular map: R smoothness, G metallic, B emissive, A copied from the albedo's alpha |
-| `X.expected_compare.json` | `--compare-expected` is set and an expected texture exists |
+| `X_n.png` | Not a GUI texture. LabPBR normal: red/green = X/Y in DirectX orientation, blue = ambient occlusion (255 = none), alpha = height (255 = surface, lower = deeper) |
+| `X_s.png` | Not a GUI texture. LabPBR specular: red = perceptual smoothness, green = F0 or metal id, blue = porosity, alpha = emission (255 = none) |
 
 The pack root also gets `pack.mcmeta` (`pack_format` 34) and `pack.png` when `texture/pack.png` or `./pack.png` exists.
-Metallic and emissive values come from keywords in the file name (for example `iron`, `lantern`), and smoothness from
-the texture's brightness and detail, so the maps are estimates, not authored data. They follow a simple layout of
-this project and are not a strict LabPBR 1.3 encoding. Sheets larger than the PBR size limit are written without maps.
+**How the LabPBR maps are estimated** (constants at the top of `scripts/generate_pbr_maps.py`; layout from the
+[LabPBR 1.3 standard](https://shaderlabs.org/wiki/LabPBR_Material_Standard)):
+
+| Channel | Estimated from |
+|---|---|
+| Normal X/Y | Gradient of the blurred luminance, scaled by `--normal-strength` |
+| Normal blue (AO) | Pixels darker than their surroundings are cavities, up to 50 % occlusion |
+| Normal alpha (height) | Luminance relative to the brightest point of the texture, using 60 % of the depth range; never 0 |
+| Specular red (smoothness) | Brightness and local detail |
+| Specular green | The file name: `iron`, `steel`, `anvil`, `chain` give metal id 230; `gold` 231; `aluminum` 232; `chrome` 233; `copper` 234; `lead` 235; `platinum` 236; `silver` 237; `metal`, `bronze`, `brass` 255 (generic metal). Everything else is a dielectric with F0 = 10 (about 4 %). Names with `ore` or `raw` are never metal, because the stone around the ore would be shaded as metal |
+| Specular blue | Porosity from the name: sand 64, wool and carpet 38, planks, log, wood, and stem 12; 0 otherwise and for metals |
+| Specular alpha | Names with `lava`, `fire`, `torch`, `lantern`, `light`, `magma`, `redstone`, `glow`, or `emissive` emit in proportion to brightness (up to 254); everything else is 255 (no emission) |
+
+Reference-pack maps are reused unchanged when `--reference-root` has them. Sheets larger than the PBR size limit are
+written without maps.
 
 ## Per-category policy
 
